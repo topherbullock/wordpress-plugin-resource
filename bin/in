@@ -1,0 +1,27 @@
+#!/bin/bash
+# vim: set ft=sh
+set -e
+
+# for jq
+PATH=/usr/local/bin:$PATH
+
+exec 3>&1 # make stdout available as fd 3 for the result
+exec 1>&2 # redirect all output to stderr for logging
+
+payload=$(cat <&0)
+
+plugin_slug=$( echo $payload | jq -r .source.plugin )
+version=$( echo $payload | jq -r .version.version )
+
+download_url=$(
+  curl "https://api.wordpress.org/plugins/info/1.0/${plugin_slug}.json" |
+  jq -r '.versions | to_entries | map(select(.key | match("'$version'";"i"))) | .[].value'
+)
+
+pushd $1
+    curl $download_url > "./${plugin_slug}.${version}.zip"
+popd
+
+jq -n "{
+  version: {version: '${version}'}
+}" >&3
